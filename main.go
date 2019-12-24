@@ -104,7 +104,7 @@ func main() {
 
 	headerBar, _ := gtk.HeaderBarNew()
 	headerBar.SetShowCloseButton(true)
-	headerBar.SetTitle("WaRandR")
+	headerBar.SetTitle("wRandR")
 
 	applyButton, _ := gtk.ButtonNewFromIconName("media-playback-start", gtk.ICON_SIZE_BUTTON)
 
