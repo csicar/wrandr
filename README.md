@@ -12,6 +12,6 @@ $ ~/go/bin/wrandr
 
 ## TODOs
 
-- [ ] Snap to Border of monitors
-- [ ] Generate Command with VendorId & ID instead of Name
+- [x] Snap to Border of monitors
+- [x] Generate Command with VendorId & ID instead of Name
 - [ ] Option to refresh
