@@ -24,6 +24,7 @@ type output struct {
 	CurrentMode mode   `json:"current_mode"`
 	Rect        rect   `json:"rect"`
 	Primary     bool   `json:"primary"`
+	Scale       float64 `json:"scale"`
 
 	Make   string `json:"make"`
 	Model  string `json:"model"`
@@ -58,6 +59,7 @@ func (r output) ToCommand() []string {
 			"output", r.identifier(),
 			"mode", fmt.Sprintf("%dx%d@%dHz", mode.Width, mode.Height, int(mode.Refresh/1000)),
 			"pos", fmt.Sprintf("%d %d", r.Rect.X, r.Rect.Y),
+			"scale", fmt.Sprintf("%.2f", r.Scale),
 		}
 	}
 	return []string{"output", r.identifier(), "disable"}
@@ -67,6 +69,11 @@ func (r *output) ChangeMode(mode mode) {
 	r.CurrentMode = mode
 	r.Rect.Width = r.CurrentMode.Width
 	r.Rect.Height = r.CurrentMode.Height
+}
+
+func (r *output) ApparentSize() (float64, float64) {
+	scale := r.Scale
+	return float64(r.CurrentMode.Width) * scale , float64(r.CurrentMode.Height) * scale
 }
 
 func parse_outputs() []output {
@@ -257,6 +264,11 @@ func MonitorMenu(component *monitorComponent) *gtk.Popover {
 	})
 	box.Add(activeBtn)
 
+
+	resolutionLabel, _ := gtk.LabelNew("Resolution")
+	box.Add(resolutionLabel)
+
+
 	var prev *gtk.RadioButton = nil
 	for _, mode := range model.Modes {
 		mode := mode
@@ -271,6 +283,18 @@ func MonitorMenu(component *monitorComponent) *gtk.Popover {
 		})
 		radio.SetActive(mode == model.CurrentMode)
 	}
+
+	dpiScaleLabel, _ := gtk.LabelNew("DPI Scale")
+	box.Add(dpiScaleLabel)
+
+	dpiScale, _ := gtk.SpinButtonNewWithRange(0.1, 4, 0.1)
+	dpiScale.SetValue(component.model.Scale)
+	dpiScale.Connect("value-changed", func() {
+		component.model.Scale = dpiScale.GetValue()
+		component.update()
+	})
+	box.Add(dpiScale)
+
 	box.ShowAll()
 
 	return popover
@@ -278,7 +302,8 @@ func MonitorMenu(component *monitorComponent) *gtk.Popover {
 
 func (r monitorComponent) update() {
 	fmt.Println(r.model.Rect)
-	width, height := world2map(r.model.Rect.Width), world2map(r.model.Rect.Height)
+	mapWidth, mapHeight := r.model.ApparentSize()
+	width, height := world2map(int(mapWidth)), world2map(int(mapHeight))
 	r.view.SetSizeRequest(width, height)
 	r.parent.Move(r.view, r.currentX, r.currentY)
 	styleCtx, _ := r.view.GetStyleContext()
@@ -300,11 +325,13 @@ type monitorComponent struct {
 }
 
 func extentX(output *output) (int, int) {
-	return output.Rect.X, output.Rect.Width
+	width, _ := output.ApparentSize()
+	return output.Rect.X, int(width)
 }
 
 func extentY(output *output) (int, int) {
-	return output.Rect.Y, output.Rect.Height
+	_, height := output.ApparentSize()
+	return output.Rect.Y, int(height)
 }
 
 func MonitorComponentNew(layout *gtk.Fixed, model *output, allOutputs *[]output) *monitorComponent {
