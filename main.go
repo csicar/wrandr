@@ -52,13 +52,15 @@ func (r output) identifier() string {
 	return fmt.Sprintf("\"%s %s %s\"", r.Make, r.Model, r.Serial)
 }
 
-func (r output) ToCommand() []string {
+func (r output) ToCommand(kanshiFormat bool) []string {
+	var positionFormat string
+	if kanshiFormat { positionFormat = "%d,%d" } else { positionFormat = "%d %d" }
 	mode := r.CurrentMode
 	if r.Active {
 		return []string{
 			"output", r.identifier(),
 			"mode", fmt.Sprintf("%dx%d@%dHz", mode.Width, mode.Height, int(mode.Refresh/1000)),
-			"pos", fmt.Sprintf("%d %d", r.Rect.X, r.Rect.Y),
+			"position", fmt.Sprintf(positionFormat, r.Rect.X, r.Rect.Y),
 			"scale", fmt.Sprintf("%.2f", r.Scale),
 		}
 	}
@@ -170,7 +172,7 @@ func main() {
 	headerBar.PackStart(applyButton)
 	applyButton.Connect("clicked", func() {
 		for _, output := range outputs {
-			args := output.ToCommand()
+			args := output.ToCommand(false)
 			fmt.Println(args)
 			handle := exec.Command("swaymsg", args...)
 			stdout, _ := handle.Output()
@@ -193,7 +195,7 @@ func main() {
 		style.AddClass("popoverBox")
 		commands := ""
 		for _, output := range outputs {
-			args := output.ToCommand()
+			args := output.ToCommand(true)
 
 			commands += strings.Join(args[:], " ") + "\n"
 		}
@@ -339,6 +341,9 @@ func MonitorComponentNew(layout *gtk.Fixed, model *output, allOutputs *[]output)
 
 	component := monitorComponent{model: model, view: btn, parent: layout, currentX: world2map(model.Rect.X), currentY: world2map(model.Rect.Y)}
 	layout.Put(btn, component.currentX, component.currentY)
+	if (component.model.Scale < 0.1) {
+		component.model.Scale = 1.0
+	}
 	component.update()
 
 	mouseOffsetX, mouseOffsetY := 0.0, 0.0
@@ -373,9 +378,9 @@ func MonitorComponentNew(layout *gtk.Fixed, model *output, allOutputs *[]output)
 }
 
 func map2world(val float64) int {
-	return int(val * 10)
+	return int(val * 7)
 }
 
 func world2map(val int) int {
-	return val / 10
+	return val / 7
 }
