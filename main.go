@@ -20,10 +20,10 @@ type output struct {
 	Name   string `json:"name"`
 	Active bool   `json:"active"`
 
-	Modes       []mode `json:"modes"`
-	CurrentMode mode   `json:"current_mode"`
-	Rect        rect   `json:"rect"`
-	Primary     bool   `json:"primary"`
+	Modes       []mode  `json:"modes"`
+	CurrentMode mode    `json:"current_mode"`
+	Rect        rect    `json:"rect"`
+	Primary     bool    `json:"primary"`
 	Scale       float64 `json:"scale"`
 
 	Make   string `json:"make"`
@@ -52,9 +52,35 @@ func (r output) identifier() string {
 	return fmt.Sprintf("\"%s %s %s\"", r.Make, r.Model, r.Serial)
 }
 
+func (r output) ToWlrRandrCommand() []string {
+	if r.Active {
+		mode := r.CurrentMode
+		return []string{
+			"--output", r.Name,
+			"--mode", fmt.Sprintf("%dx%d", mode.Width, mode.Height),
+			"--pos", fmt.Sprintf("%d,%d", r.Rect.X, r.Rect.Y),
+			"--scale", fmt.Sprintf("%.2f", r.Scale),
+		}
+	}
+	return []string{"--output", r.Name, "--off"}
+}
+
+func OutputsToWlrRandrCommand(outputs *[]output) string {
+	commands := ""
+	for _, output := range *outputs {
+		args := output.ToWlrRandrCommand()
+		commands += "wlr-randr " + strings.Join(args[:], " ") + ";\n"
+	}
+	return commands
+}
+
 func (r output) ToCommand(kanshiFormat bool) []string {
 	var positionFormat string
-	if kanshiFormat { positionFormat = "%d,%d" } else { positionFormat = "%d %d" }
+	if kanshiFormat {
+		positionFormat = "%d,%d"
+	} else {
+		positionFormat = "%d %d"
+	}
 	mode := r.CurrentMode
 	if r.Active {
 		return []string{
@@ -67,6 +93,26 @@ func (r output) ToCommand(kanshiFormat bool) []string {
 	return []string{"output", r.identifier(), "disable"}
 }
 
+func OutputsToSwayCommand(outputs *[]output) string {
+	commands := ""
+	for _, output := range *outputs {
+		args := output.ToCommand(false)
+		commands += "swaymsg " + strings.Join(args[:], " ") + ";\n"
+	}
+	return commands
+}
+
+func OutputsToKanshiCommand(outputs *[]output) string {
+	commands := "{\n"
+	for _, output := range *outputs {
+		args := output.ToCommand(true)
+
+		commands += "    " + strings.Join(args[:], " ") + "\n"
+	}
+	commands += "}"
+	return commands
+}
+
 func (r *output) ChangeMode(mode mode) {
 	r.CurrentMode = mode
 	r.Rect.Width = r.CurrentMode.Width
@@ -75,7 +121,7 @@ func (r *output) ChangeMode(mode mode) {
 
 func (r *output) ApparentSize() (float64, float64) {
 	scale := r.Scale
-	return float64(r.CurrentMode.Width) * scale , float64(r.CurrentMode.Height) * scale
+	return float64(r.CurrentMode.Width) * scale, float64(r.CurrentMode.Height) * scale
 }
 
 func parse_outputs() []output {
@@ -180,44 +226,59 @@ func main() {
 		}
 	})
 
+	content, _ := gtk.PanedNew(gtk.ORIENTATION_HORIZONTAL)
+	win.Add(content)
+
+	rightSide, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 10)
+	content.Pack2(rightSide, false, true)
+
+	wlrRandrTextView, _ := gtk.TextViewNew()
+	wlrRandrTextBuffer, _ := wlrRandrTextView.GetBuffer()
+
+	swayTextView, _ := gtk.TextViewNew()
+	swayTextBuffer, _ := swayTextView.GetBuffer()
+
+	kanshiTextView, _ := gtk.TextViewNew()
+	kanshiTextBuffer, _ := kanshiTextView.GetBuffer()
+
+	stackSwitcher, _ := gtk.StackSwitcherNew()
+	stackSwitcher.SetHAlign(gtk.ALIGN_CENTER)
+	stack, _ := gtk.StackNew()
+	stack.AddTitled(wlrRandrTextView, "wlr-randr", "wlr-randr")
+	stack.AddTitled(swayTextView, "Sway", "Sway")
+	stack.AddTitled(kanshiTextView, "Kanshi", "Kanshi")
+
+	updateCommands := func() {
+		wlrRandrTextBuffer.SetText(OutputsToWlrRandrCommand(&outputs))
+		swayTextBuffer.SetText(OutputsToSwayCommand(&outputs))
+		kanshiTextBuffer.SetText(OutputsToKanshiCommand(&outputs))
+	}
+
+	stackSwitcher.SetStack(stack)
+	rightSide.PackStart(stackSwitcher, false, true, 0)
+	rightSide.PackStart(stack, true, true, 0)
+
 	commandOutputButton, _ := gtk.ButtonNewFromIconName("document-edit", gtk.ICON_SIZE_BUTTON)
 	headerBar.PackEnd(commandOutputButton)
+
+	isRightSideVisible := true
 	commandOutputButton.Connect("clicked", func() {
-		popover, _ := gtk.PopoverNew(commandOutputButton)
-		box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 10)
-
-		tagTable, _ := gtk.TextTagTableNew()
-		textBuffer, _ := gtk.TextBufferNew(tagTable)
-		textView, _ := gtk.TextViewNewWithBuffer(textBuffer)
-		popover.Add(box)
-		box.Add(textView)
-		style, _ := box.GetStyleContext()
-		style.AddClass("popoverBox")
-		commands := ""
-		for _, output := range outputs {
-			args := output.ToCommand(true)
-
-			commands += strings.Join(args[:], " ") + "\n"
-		}
-		textBuffer.SetText(commands)
-		popover.ShowAll()
+		content.SetPosition(7 * content.GetAllocatedWidth() / 10)
+		isRightSideVisible = !isRightSideVisible
+		rightSide.SetVisible(isRightSideVisible)
+		updateCommands()
 	})
 
 	win.SetTitlebar(headerBar)
 
-	layout, err := gtk.FixedNew()
-	win.Add(layout)
+	canvas, err := gtk.FixedNew()
+	content.Pack1(canvas, true, true)
 
 	// Set the default window size.
 	win.SetDefaultSize(800, 600)
 
-	// Recursively show all widgets contained in this window.
-
-	// Begin executing the GTK main loop.  This blocks until
-	// gtk.MainQuit() is run.
-
 	for i, _ := range outputs {
-		MonitorComponentNew(layout, &outputs[i], &outputs)
+		MonitorComponentNew(canvas, &outputs[i], &outputs, &updateCommands)
 	}
 
 	cssProvider, err := gtk.CssProviderNew()
@@ -228,10 +289,12 @@ func main() {
 	if err != nil {
 		log.Fatal("err", err)
 	}
-	screen, _ := win.GetScreen()
+	screen := win.GetScreen()
 	gtk.AddProviderForScreen(screen, cssProvider, gtk.STYLE_PROVIDER_PRIORITY_USER)
 
 	win.ShowAll()
+	content.SetPosition(7 * content.GetAllocatedWidth() / 10)
+
 
 	gtk.Main()
 }
@@ -266,10 +329,8 @@ func MonitorMenu(component *monitorComponent) *gtk.Popover {
 	})
 	box.Add(activeBtn)
 
-
 	resolutionLabel, _ := gtk.LabelNew("Resolution")
 	box.Add(resolutionLabel)
-
 
 	var prev *gtk.RadioButton = nil
 	for _, mode := range model.Modes {
@@ -316,6 +377,7 @@ func (r monitorComponent) update() {
 		styleCtx.AddClass("inactive")
 		styleCtx.RemoveClass("active")
 	}
+	(*r.onChangeListener)()
 }
 
 type monitorComponent struct {
@@ -324,6 +386,7 @@ type monitorComponent struct {
 	parent   *gtk.Fixed
 	currentX int
 	currentY int
+	onChangeListener *(func ())
 }
 
 func extentX(output *output) (int, int) {
@@ -336,12 +399,12 @@ func extentY(output *output) (int, int) {
 	return output.Rect.Y, int(height)
 }
 
-func MonitorComponentNew(layout *gtk.Fixed, model *output, allOutputs *[]output) *monitorComponent {
+func MonitorComponentNew(canvas *gtk.Fixed, model *output, allOutputs *[]output, onChange *(func())) *monitorComponent {
 	btn, _ := gtk.ButtonNewWithLabel(fmt.Sprintf("%s\n%s\n%s", model.Name, model.Make, model.Model))
 
-	component := monitorComponent{model: model, view: btn, parent: layout, currentX: world2map(model.Rect.X), currentY: world2map(model.Rect.Y)}
-	layout.Put(btn, component.currentX, component.currentY)
-	if (component.model.Scale < 0.1) {
+	component := monitorComponent{model: model, view: btn, parent: canvas, currentX: world2map(model.Rect.X), currentY: world2map(model.Rect.Y), onChangeListener: onChange}
+	canvas.Put(btn, component.currentX, component.currentY)
+	if component.model.Scale < 0.1 {
 		component.model.Scale = 1.0
 	}
 	component.update()
@@ -350,8 +413,8 @@ func MonitorComponentNew(layout *gtk.Fixed, model *output, allOutputs *[]output)
 	wasMoved := false
 	btn.Connect("button_press_event", func(a *gtk.Button, event *gdk.Event) {
 		buttonEvent := gdk.EventButtonNewFromEvent(event)
-		toplevel, _ := layout.GetToplevel()
-		offsetX, offsetY, _ := layout.TranslateCoordinates(toplevel, 0, 0)
+		toplevel, _ := canvas.GetToplevel()
+		offsetX, offsetY, _ := canvas.TranslateCoordinates(toplevel, 0, 0)
 		mouseOffsetX, mouseOffsetY = float64(offsetX)+buttonEvent.X(), float64(offsetY)+buttonEvent.Y()
 	})
 	btn.Connect("button_release_event", func(a *gtk.Button, event *gdk.Event) {
