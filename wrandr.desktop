@@ -3,5 +3,5 @@ Type=Application
 Version=1.0
 Name=wRandR
 Comment=Multihead UI for Sway
-Exec=bash -c "~/go/bin/wrandr"
+Exec=bash -c "GDK_BACKEND=wayland ~/go/bin/wrandr"
 Icon=video-display
