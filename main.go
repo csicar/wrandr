@@ -60,6 +60,7 @@ func (r output) ToWlrRandrCommand() []string {
 			"--mode", fmt.Sprintf("%dx%d", mode.Width, mode.Height),
 			"--pos", fmt.Sprintf("%d,%d", r.Rect.X, r.Rect.Y),
 			"--scale", fmt.Sprintf("%.2f", r.Scale),
+			"--on"
 		}
 	}
 	return []string{"--output", r.Name, "--off"}
