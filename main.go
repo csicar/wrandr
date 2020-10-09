@@ -60,7 +60,7 @@ func (r output) ToWlrRandrCommand() []string {
 			"--mode", fmt.Sprintf("%dx%d", mode.Width, mode.Height),
 			"--pos", fmt.Sprintf("%d,%d", r.Rect.X, r.Rect.Y),
 			"--scale", fmt.Sprintf("%.2f", r.Scale),
-			"--on"
+			"--on",
 		}
 	}
 	return []string{"--output", r.Name, "--off"}
@@ -89,7 +89,7 @@ func (r output) ToCommand(kanshiFormat bool) []string {
 			"mode", fmt.Sprintf("%dx%d@%dHz", mode.Width, mode.Height, int(mode.Refresh/1000)),
 			"position", fmt.Sprintf(positionFormat, r.Rect.X, r.Rect.Y),
 			"scale", fmt.Sprintf("%.2f", r.Scale),
-			"enable"
+			"enable",
 		}
 	}
 	return []string{"output", r.identifier(), "disable"}
