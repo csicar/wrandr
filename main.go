@@ -123,7 +123,7 @@ func (r *output) ChangeMode(mode mode) {
 
 func (r *output) ApparentSize() (float64, float64) {
 	scale := r.Scale
-	return float64(r.CurrentMode.Width) * scale, float64(r.CurrentMode.Height) * scale
+	return float64(r.CurrentMode.Width) / scale, float64(r.CurrentMode.Height) / scale
 }
 
 func parse_outputs() []output {
