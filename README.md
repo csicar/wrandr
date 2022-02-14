@@ -26,4 +26,4 @@ $ cp wrandr.desktop ~/.local/share/applications/
 
 ## Alternatives
 
-If you want something with more features checkout [wdisplays](https://github.com/cyclopsian/wdisplays)
+If you want something with more features checkout [wdisplays](https://github.com/luispabon/wdisplays)
